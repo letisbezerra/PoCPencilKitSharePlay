@@ -14,8 +14,11 @@ class DrawingViewController: UIViewController {
     private var eraserTool: PKEraserTool!
     private var customToolbar: UIToolbar!
     
-    private var color1 = PKInkingTool(.crayon, color: .systemRed, width: 10)
-    private var color2 = PKInkingTool(.crayon, color: .systemMint, width: 10)
+    // Propriedades para controle de estado
+    private var currentColor: UIColor = .systemRed
+    private var isUsingColor1 = true
+    private var currentEraserWidth: CGFloat = 10
+    private var currentInkingWidth: CGFloat = 10
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -38,17 +41,15 @@ class DrawingViewController: UIViewController {
     }
     
     private func setupTools() {
-        // Configuração da borracha (opcional)
-        eraserTool = PKEraserTool(.bitmap)
-        eraserTool.width = 10
+        // Configuração inicial da borracha
+        eraserTool = PKEraserTool(.bitmap, width: currentEraserWidth)
         
-        // Define o crayon como ferramenta inicial
-        crayonTool = color1
+        // Configuração inicial do crayon
+        crayonTool = PKInkingTool(.crayon, color: currentColor, width: currentInkingWidth)
         canvasView.tool = crayonTool
     }
     
     private func setupCustomToolbar() {
-        // Cria uma toolbar customizada para substituir o PKToolPicker
         customToolbar = UIToolbar()
         customToolbar.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(customToolbar)
@@ -66,7 +67,6 @@ class DrawingViewController: UIViewController {
             action: #selector(selectColor1)
         )
                 
-        // Botão para a segunda cor
         let color2Item = UIBarButtonItem(
             image: UIImage(systemName: "circle.fill")?.withTintColor(.systemMint, renderingMode: .alwaysOriginal),
             style: .plain,
@@ -74,12 +74,25 @@ class DrawingViewController: UIViewController {
             action: #selector(selectColor2)
         )
         
-        // Cria itens para a toolbar
         let crayonItem = UIBarButtonItem(
             image: UIImage(systemName: "pencil.tip"),
             style: .plain,
             target: self,
             action: #selector(selectCrayon))
+        
+        let decreaseWidthItem = UIBarButtonItem(
+            image: UIImage(systemName: "minus.circle"),
+            style: .plain,
+            target: self,
+            action: #selector(decreaseStrokeWidth)
+        )
+
+        let increaseWidthItem = UIBarButtonItem(
+            image: UIImage(systemName: "plus.circle"),
+            style: .plain,
+            target: self,
+            action: #selector(increaseStrokeWidth)
+        )
         
         let eraserItem = UIBarButtonItem(
             image: UIImage(systemName: "eraser"),
@@ -89,25 +102,66 @@ class DrawingViewController: UIViewController {
         
         let space = UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil)
         
-        customToolbar.items = [crayonItem, space, color1Item, color2Item, space, eraserItem]
+        customToolbar.items = [
+            crayonItem,
+            eraserItem,
+            space,
+            decreaseWidthItem,
+            increaseWidthItem,
+            space,
+            color1Item,
+            color2Item,
+        ]
+    }
+    
+    @objc func increaseStrokeWidth() {
+        if canvasView.tool is PKInkingTool {
+            currentInkingWidth = min(currentInkingWidth + 5, 50) // Aumenta de 5 em 5
+            updateInkingTool()
+        } else if canvasView.tool is PKEraserTool {
+            currentEraserWidth = min(currentEraserWidth + 5, 50)
+            updateEraserTool()
+        }
+    }
+
+    @objc func decreaseStrokeWidth() {
+        if canvasView.tool is PKInkingTool {
+            currentInkingWidth = max(currentInkingWidth - 5, 5) // Diminui de 5 em 5
+            updateInkingTool()
+        } else if canvasView.tool is PKEraserTool {
+            currentEraserWidth = max(currentEraserWidth - 5, 5)
+            updateEraserTool()
+        }
+    }
+    
+    private func updateEraserTool() {
+        eraserTool = PKEraserTool(.bitmap, width: currentEraserWidth)
+        canvasView.tool = eraserTool
+    }
+    
+    private func updateInkingTool() {
+        crayonTool = PKInkingTool(.crayon, color: currentColor, width: currentInkingWidth)
+        canvasView.tool = crayonTool
     }
     
     @objc func selectColor1() {
-        crayonTool = color1
-        canvasView.tool = crayonTool
+        currentColor = .systemRed
+        isUsingColor1 = true
+        updateInkingTool()
     }
     
     @objc func selectColor2() {
-        crayonTool = color2
-        canvasView.tool = crayonTool
+        currentColor = .systemMint
+        isUsingColor1 = false
+        updateInkingTool()
     }
     
     @objc func selectCrayon() {
-        canvasView.tool = crayonTool
+        updateInkingTool()
     }
     
     @objc func selectEraser() {
-        canvasView.tool = eraserTool
+        updateEraserTool()
     }
     
     override func viewWillAppear(_ animated: Bool) {
