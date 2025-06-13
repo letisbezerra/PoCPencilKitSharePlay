@@ -20,6 +20,8 @@ class DrawingViewController: UIViewController {
     private var currentEraserWidth: CGFloat = 10
     private var currentInkingWidth: CGFloat = 10
     
+    private var currentOpacity: CGFloat = 1.0 // de 0.0 (transparente) a 1.0 (opaco)
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         setupCanvas()
@@ -40,6 +42,12 @@ class DrawingViewController: UIViewController {
         ])
     }
     
+    private func updateInkingTool() {
+        let colorWithOpacity = currentColor.withAlphaComponent(currentOpacity)
+        crayonTool = PKInkingTool(.crayon, color: colorWithOpacity, width: currentInkingWidth)
+        canvasView.tool = crayonTool
+    }
+
     private func setupTools() {
         // Configuração inicial da borracha
         eraserTool = PKEraserTool(.bitmap, width: currentEraserWidth)
@@ -100,6 +108,20 @@ class DrawingViewController: UIViewController {
             target: self,
             action: #selector(selectEraser))
         
+        let decreaseOpacityItem = UIBarButtonItem(
+            image: UIImage(systemName: "circle.lefthalf.fill"),
+            style: .plain,
+            target: self,
+            action: #selector(decreaseOpacity)
+        )
+
+        let increaseOpacityItem = UIBarButtonItem(
+            image: UIImage(systemName: "circle.righthalf.fill"),
+            style: .plain,
+            target: self,
+            action: #selector(increaseOpacity)
+        )
+        
         let space = UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil)
         
         customToolbar.items = [
@@ -109,17 +131,30 @@ class DrawingViewController: UIViewController {
             decreaseWidthItem,
             increaseWidthItem,
             space,
+            decreaseOpacityItem,
+            increaseOpacityItem,
+            space,
             color1Item,
-            color2Item,
+            color2Item
         ]
+    }
+    
+    @objc func increaseOpacity() {
+        currentOpacity = min(currentOpacity + 0.1, 1.0)
+        updateInkingTool()
+    }
+
+    @objc func decreaseOpacity() {
+        currentOpacity = max(currentOpacity - 0.1, 0.1)
+        updateInkingTool()
     }
     
     @objc func increaseStrokeWidth() {
         if canvasView.tool is PKInkingTool {
-            currentInkingWidth = min(currentInkingWidth + 5, 50) // Aumenta de 5 em 5
+            currentInkingWidth = min(currentInkingWidth + 2, 200) // Aumenta de 5 em 5
             updateInkingTool()
         } else if canvasView.tool is PKEraserTool {
-            currentEraserWidth = min(currentEraserWidth + 5, 50)
+            currentEraserWidth = min(currentEraserWidth + 2, 200)
             updateEraserTool()
         }
     }
@@ -137,11 +172,6 @@ class DrawingViewController: UIViewController {
     private func updateEraserTool() {
         eraserTool = PKEraserTool(.bitmap, width: currentEraserWidth)
         canvasView.tool = eraserTool
-    }
-    
-    private func updateInkingTool() {
-        crayonTool = PKInkingTool(.crayon, color: currentColor, width: currentInkingWidth)
-        canvasView.tool = crayonTool
     }
     
     @objc func selectColor1() {
