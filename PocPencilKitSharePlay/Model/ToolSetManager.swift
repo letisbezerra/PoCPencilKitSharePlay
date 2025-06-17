@@ -23,10 +23,12 @@ enum ToolSetManager {
         .systemMint, .systemCyan, .systemGray, .black
     ]
 
-    /// Gera um ToolSet aleatório.
     static func random() -> ToolSet {
-        let inkType = inkTypes.randomElement() ?? .crayon        // fallback
+        let inkType = inkTypes.randomElement() ?? .crayon        
         let randomColors = Array(colors.shuffled().prefix(2))
+        print(inkType)
+        print(randomColors)
+        
         return ToolSet(
             inkType: inkType,
             color1: randomColors[0],

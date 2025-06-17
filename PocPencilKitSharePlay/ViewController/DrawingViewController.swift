@@ -35,6 +35,7 @@ final class DrawingViewController: UIViewController {
         view.backgroundColor = .systemBackground
 
         setupCanvas()
+        setupSliders()
         setupToolbar()
         setupInitialToolSet()
     }
@@ -48,6 +49,36 @@ final class DrawingViewController: UIViewController {
             canvasView.topAnchor.constraint(equalTo: view.topAnchor),
             canvasView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
+    }
+    
+    // Setup Sliders
+    private func setupSliders() {
+        view.addSubview(opacitySlider)
+        view.addSubview(opacityIcon)
+        view.addSubview(widthSlider)
+        view.addSubview(widthIcon)
+
+        NSLayoutConstraint.activate([
+            // Slider de Opacidade (superior)
+            opacitySlider.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: -60),
+            opacitySlider.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -100),
+
+            // Ícone de opacidade
+            opacityIcon.centerXAnchor.constraint(equalTo: opacitySlider.centerXAnchor),
+            opacityIcon.bottomAnchor.constraint(equalTo: opacitySlider.topAnchor, constant: -100),
+
+            // Slider de Espessura (inferior)
+            widthSlider.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: -60),
+            widthSlider.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: 100),
+
+            // Ícone de espessura
+            widthIcon.centerXAnchor.constraint(equalTo: widthSlider.centerXAnchor),
+            widthIcon.bottomAnchor.constraint(equalTo: widthSlider.topAnchor, constant: 150),
+        ])
+
+        // Ações
+        opacitySlider.addTarget(self, action: #selector(opacitySliderChanged), for: .valueChanged)
+        widthSlider.addTarget(self, action: #selector(widthSliderChanged), for: .valueChanged)
     }
 
     private func setupToolbar() {
@@ -69,6 +100,60 @@ final class DrawingViewController: UIViewController {
         currentToolSet = ToolSetManager.random()
         apply(toolSet: currentToolSet)
         showToolsetInfo()
+    }
+    
+    private lazy var verticalStackView: UIStackView = {
+        let stack = UIStackView()
+        stack.axis = .vertical
+        stack.spacing = 16
+        stack.alignment = .center
+        stack.distribution = .fill
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        return stack
+    }()
+    
+    private let opacitySlider: UISlider = {
+        let slider = UISlider()
+        slider.minimumValue = 0.1
+        slider.maximumValue = 1.0
+        slider.value = 1.0
+        slider.transform = CGAffineTransform(rotationAngle: -.pi/2)
+        slider.translatesAutoresizingMaskIntoConstraints = false
+        slider.widthAnchor.constraint(equalToConstant: 200).isActive = true
+        slider.heightAnchor.constraint(equalToConstant: 30).isActive = true
+        return slider
+    }()
+    
+    private let widthSlider: UISlider = {
+        let slider = UISlider()
+        slider.minimumValue = 2
+        slider.maximumValue = 50
+        slider.value = 5
+        slider.transform = CGAffineTransform(rotationAngle: -.pi/2)
+        slider.translatesAutoresizingMaskIntoConstraints = false
+        slider.widthAnchor.constraint(equalToConstant: 200).isActive = true
+        slider.heightAnchor.constraint(equalToConstant: 30).isActive = true
+        return slider
+    }()
+    
+    private let opacityIcon: UIImageView = {
+        let imageView = UIImageView(image: UIImage(systemName: "circle.lefthalf.filled"))
+        imageView.tintColor = .systemGray
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        return imageView
+    }()
+    
+    private let widthIcon: UIImageView = {
+        let imageView = UIImageView(image: UIImage(systemName: "lineweight"))
+        imageView.tintColor = .systemGray
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        return imageView
+    }()
+    
+    private func saveDrawingAsImage() {
+        let image = canvasView.drawing.image(from: canvasView.bounds, scale: UIScreen.main.scale)
+        
+        UIImageWriteToSavedPhotosAlbum(image, self, #selector(image(_:didFinishSavingWithError:contextInfo:)), nil)
     }
 
     // Toolbar items
@@ -96,51 +181,41 @@ final class DrawingViewController: UIViewController {
             style: .plain,
             target: self,
             action: #selector(selectEraser))
-
-        let decreaseWidthItem = UIBarButtonItem(
-            image: UIImage(systemName: "minus.circle"),
+        
+        let saveItem = UIBarButtonItem(
+            image: UIImage(systemName: "square.and.arrow.down"),
             style: .plain,
             target: self,
-            action: #selector(decreaseStrokeWidth))
-
-        let increaseWidthItem = UIBarButtonItem(
-            image: UIImage(systemName: "plus.circle"),
-            style: .plain,
-            target: self,
-            action: #selector(increaseStrokeWidth))
-
-        let decreaseOpacityItem = UIBarButtonItem(
-            image: UIImage(systemName: "circle.lefthalf.fill"),
-            style: .plain,
-            target: self,
-            action: #selector(decreaseOpacity))
-
-        let increaseOpacityItem = UIBarButtonItem(
-            image: UIImage(systemName: "circle.righthalf.fill"),
-            style: .plain,
-            target: self,
-            action: #selector(increaseOpacity))
+            action: #selector(saveButtonTapped)
+        )
 
         let space = UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil)
 
         customToolbar.items = [
-            penItem, eraserItem,
+            eraserItem,
             space,
-            decreaseWidthItem, increaseWidthItem,
+            penItem,
+            color1Item, color2Item,
             space,
-            decreaseOpacityItem, increaseOpacityItem,
-            space,
-            color1Item, color2Item
+            saveItem
         ]
     }
 
     // Tool handling
     private func apply(toolSet: ToolSet) {
         currentInkType = toolSet.inkType
-        currentColor   = toolSet.color1    // começa com a primeira cor
+        currentColor = toolSet.color1
+        currentOpacity = 1.0           // Garante que a opacidade seja reiniciada
+        currentInkingWidth = 5         // Define um tamanho padrão para o pincel
+        
         inkingTool = PKInkingTool(currentInkType, color: currentColor, width: currentInkingWidth)
         eraserTool = PKEraserTool(.bitmap, width: currentEraserWidth)
         canvasView.tool = inkingTool
+            
+        // Sincroniza os sliders com os valores atuais
+        opacitySlider.value = Float(currentOpacity)
+        widthSlider.value = Float(currentInkingWidth)
+            
         updateToolbarColors()
     }
 
@@ -180,7 +255,6 @@ final class DrawingViewController: UIViewController {
     }
 
     // Toolbar actions
-
     @objc private func selectColor1() {
         currentColor = currentToolSet.color1
         inkingTool = PKInkingTool(currentInkType, color: currentColor, width: currentInkingWidth)
@@ -203,23 +277,44 @@ final class DrawingViewController: UIViewController {
 
     @objc private func increaseStrokeWidth() {
         if canvasView.tool is PKInkingTool {
-            currentInkingWidth = min(currentInkingWidth + 2, 500)
+            currentInkingWidth = min(currentInkingWidth + 2, 50)
+            widthSlider.value = Float(currentInkingWidth)
             inkingTool = PKInkingTool(currentInkType, color: currentColor, width: currentInkingWidth)
             canvasView.tool = inkingTool
         } else {
-            currentEraserWidth = min(currentEraserWidth + 2, 500)
+            currentEraserWidth = min(currentEraserWidth + 2, 50)
+            widthSlider.value = Float(currentEraserWidth)
             eraserTool = PKEraserTool(.bitmap, width: currentEraserWidth)
             canvasView.tool = eraserTool
         }
     }
-
+    
     @objc private func decreaseStrokeWidth() {
         if canvasView.tool is PKInkingTool {
             currentInkingWidth = max(currentInkingWidth - 2, 2)
+            widthSlider.value = Float(currentInkingWidth)
             inkingTool = PKInkingTool(currentInkType, color: currentColor, width: currentInkingWidth)
             canvasView.tool = inkingTool
         } else {
             currentEraserWidth = max(currentEraserWidth - 2, 2)
+            widthSlider.value = Float(currentEraserWidth)
+            eraserTool = PKEraserTool(.bitmap, width: currentEraserWidth)
+            canvasView.tool = eraserTool
+        }
+    }
+    
+    @objc private func opacitySliderChanged(_ sender: UISlider) {
+        currentOpacity = CGFloat(sender.value)
+        updateOpacity()
+    }
+       
+    @objc private func widthSliderChanged(_ sender: UISlider) {
+        if canvasView.tool is PKInkingTool {
+            currentInkingWidth = CGFloat(sender.value)
+            inkingTool = PKInkingTool(currentInkType, color: currentColor, width: currentInkingWidth)
+            canvasView.tool = inkingTool
+        } else {
+            currentEraserWidth = CGFloat(sender.value)
             eraserTool = PKEraserTool(.bitmap, width: currentEraserWidth)
             canvasView.tool = eraserTool
         }
@@ -234,11 +329,27 @@ final class DrawingViewController: UIViewController {
         currentOpacity = max(currentOpacity - 0.1, 0.1)
         updateOpacity()
     }
-
+    
     private func updateOpacity() {
         currentColor = currentColor.withAlphaComponent(currentOpacity)
         inkingTool = PKInkingTool(currentInkType, color: currentColor, width: currentInkingWidth)
         canvasView.tool = inkingTool
+        opacitySlider.value = Float(currentOpacity)
+    }
+    
+    @objc private func image(_ image: UIImage, didFinishSavingWithError error: Error?, contextInfo: UnsafeRawPointer) {
+        let alert: UIAlertController
+        if let error = error {
+            alert = UIAlertController(title: "Erro", message: "Não foi possível salvar: \(error.localizedDescription)", preferredStyle: .alert)
+        } else {
+            alert = UIAlertController(title: "Salvo", message: "Sua imagem foi salva na galeria com sucesso.", preferredStyle: .alert)
+        }
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+    }
+    
+    @objc private func saveButtonTapped() {
+        saveDrawingAsImage()
     }
 }
 
