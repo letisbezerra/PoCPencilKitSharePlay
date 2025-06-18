@@ -15,6 +15,7 @@ final class DrawingViewController: UIViewController {
         cv.translatesAutoresizingMaskIntoConstraints = false
         return cv
     }()
+    
     private var customToolbar: UIToolbar!
 
     // State
@@ -32,7 +33,10 @@ final class DrawingViewController: UIViewController {
     // Lifecycle
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .systemBackground
+        overrideUserInterfaceStyle = .light
+
+        view.backgroundColor = .white
+        canvasView.backgroundColor = .white
 
         setupCanvas()
         setupSliders()
@@ -149,12 +153,6 @@ final class DrawingViewController: UIViewController {
         imageView.translatesAutoresizingMaskIntoConstraints = false
         return imageView
     }()
-    
-    private func saveDrawingAsImage() {
-        let image = canvasView.drawing.image(from: canvasView.bounds, scale: UIScreen.main.scale)
-        
-        UIImageWriteToSavedPhotosAlbum(image, self, #selector(image(_:didFinishSavingWithError:contextInfo:)), nil)
-    }
 
     // Toolbar items
     private func buildToolbarItems() {
@@ -186,13 +184,27 @@ final class DrawingViewController: UIViewController {
             image: UIImage(systemName: "square.and.arrow.down"),
             style: .plain,
             target: self,
-            action: #selector(saveButtonTapped)
-        )
+            action: #selector(saveButtonTapped))
+        
+        let undoButton = UIBarButtonItem(
+            image: UIImage(systemName: "arrow.uturn.left"),
+            style: .plain,
+            target: self,
+            action: #selector(undoTapped))
+        
+        let redoButton = UIBarButtonItem(
+            image: UIImage(systemName: "arrow.uturn.right"),
+            style: .plain,
+            target: self,
+            action: #selector(redoTapped))
+
 
         let space = UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil)
 
         customToolbar.items = [
             eraserItem,
+            space,
+            undoButton, redoButton,
             space,
             penItem,
             color1Item, color2Item,
@@ -337,6 +349,93 @@ final class DrawingViewController: UIViewController {
         opacitySlider.value = Float(currentOpacity)
     }
     
+    @objc private func saveButtonTapped() {
+        saveDrawingAsPKDrawing()
+    }
+
+    private func saveDrawingAsPKDrawing() {
+        guard !canvasView.drawing.strokes.isEmpty else {
+            showAlert(title: "Desenho vazio", message: "Não há nada para salvar. Desenhe algo primeiro.")
+            return
+        }
+
+        let drawingData = canvasView.drawing.dataRepresentation()
+        
+        do {
+            let documentsURL = try FileManager.default.url(
+                for: .documentDirectory,
+                in: .userDomainMask,
+                appropriateFor: nil,
+                create: true
+            )
+            
+            let fileName = "Desenho-\(Date().timeIntervalSince1970).drawing"
+            let fileURL = documentsURL.appendingPathComponent(fileName)
+
+            try drawingData.write(to: fileURL)
+            
+            showSaveOptions(for: fileURL)
+        } catch {
+            print("Erro ao salvar PKDrawing:", error)
+            showAlert(title: "Erro", message: "Não foi possível salvar o desenho.")
+        }
+    }
+
+    private func saveToAppDirectory(image: UIImage) -> URL? {
+        guard let data = image.pngData() else { return nil }
+        
+        do {
+            let documentsURL = try FileManager.default.url(
+                for: .documentDirectory,
+                in: .userDomainMask,
+                appropriateFor: nil,
+                create: true
+            )
+            
+            let fileName = "Desenho-\(Date().timeIntervalSince1970).png"
+            let fileURL = documentsURL.appendingPathComponent(fileName)
+            
+            try data.write(to: fileURL)
+            return fileURL
+        } catch {
+            print("Erro ao salvar: \(error)")
+            return nil
+        }
+    }
+
+    private func showSaveOptions(for fileURL: URL) {
+        let alert = UIAlertController(
+            title: "Desenho Salvo",
+            message: "Escolha uma opção:",
+            preferredStyle: .actionSheet
+        )
+        
+        alert.addAction(UIAlertAction(title: "Compartilhar", style: .default) { [weak self] _ in
+            self?.shareImage(url: fileURL)
+        })
+        
+        alert.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
+        
+        if let popover = alert.popoverPresentationController {
+            popover.barButtonItem = customToolbar.items?.last(where: { $0.action == #selector(saveButtonTapped) })
+        }
+        
+        present(alert, animated: true)
+    }
+
+    private func shareImage(url: URL) {
+        let activityVC = UIActivityViewController(
+            activityItems: [url],
+            applicationActivities: nil
+        )
+        
+        if let popover = activityVC.popoverPresentationController {
+            popover.barButtonItem = customToolbar.items?.last(where: { $0.action == #selector(saveButtonTapped) })
+        }
+        
+        present(activityVC, animated: true)
+    }
+
     @objc private func image(_ image: UIImage, didFinishSavingWithError error: Error?, contextInfo: UnsafeRawPointer) {
         let alert: UIAlertController
         if let error = error {
@@ -348,8 +447,22 @@ final class DrawingViewController: UIViewController {
         present(alert, animated: true)
     }
     
-    @objc private func saveButtonTapped() {
-        saveDrawingAsImage()
+    private func showAlert(title: String, message: String) {
+        let alert = UIAlertController(
+            title: title,
+            message: message,
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+    }
+    
+    @objc private func undoTapped() {
+        canvasView.undoManager?.undo()
+    }
+
+    @objc private func redoTapped() {
+        canvasView.undoManager?.redo()
     }
 }
 
