@@ -55,36 +55,6 @@ final class DrawingViewController: UIViewController {
         ])
     }
     
-    // Setup Sliders
-    private func setupSliders() {
-        view.addSubview(opacitySlider)
-        view.addSubview(opacityIcon)
-        view.addSubview(widthSlider)
-        view.addSubview(widthIcon)
-
-        NSLayoutConstraint.activate([
-            // Slider de Opacidade (superior)
-            opacitySlider.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: -60),
-            opacitySlider.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -100),
-
-            // Ícone de opacidade
-            opacityIcon.centerXAnchor.constraint(equalTo: opacitySlider.centerXAnchor),
-            opacityIcon.bottomAnchor.constraint(equalTo: opacitySlider.topAnchor, constant: -100),
-
-            // Slider de Espessura (inferior)
-            widthSlider.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: -60),
-            widthSlider.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: 100),
-
-            // Ícone de espessura
-            widthIcon.centerXAnchor.constraint(equalTo: widthSlider.centerXAnchor),
-            widthIcon.bottomAnchor.constraint(equalTo: widthSlider.topAnchor, constant: 150),
-        ])
-
-        // Ações
-        opacitySlider.addTarget(self, action: #selector(opacitySliderChanged), for: .valueChanged)
-        widthSlider.addTarget(self, action: #selector(widthSliderChanged), for: .valueChanged)
-    }
-
     private func setupToolbar() {
         customToolbar = UIToolbar()
         customToolbar.translatesAutoresizingMaskIntoConstraints = false
@@ -98,13 +68,121 @@ final class DrawingViewController: UIViewController {
 
         buildToolbarItems()
     }
-
+    
     private func setupInitialToolSet() {
         // recebe do Model
         currentToolSet = ToolSetManager.random()
         apply(toolSet: currentToolSet)
         showToolsetInfo()
     }
+    
+    // Setup Sliders
+    private let slidersContainer: UIView = {
+        let view = UIView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.backgroundColor = UIColor.systemGray6.withAlphaComponent(0.9)
+        view.layer.cornerRadius = 24
+        view.layer.shadowColor = UIColor.black.cgColor
+        view.layer.shadowOpacity = 0.2
+        view.layer.shadowOffset = CGSize(width: 0, height: 2)
+        view.layer.shadowRadius = 6
+        return view
+    }()
+
+    private func setupSliders() {
+        view.addSubview(slidersContainer)
+        
+        // Configuração do container principal
+        NSLayoutConstraint.activate([
+            slidersContainer.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            slidersContainer.widthAnchor.constraint(equalToConstant: 100),
+            slidersContainer.heightAnchor.constraint(equalToConstant: 550)
+        ])
+        
+        // Adiciona os elementos diretamente no container
+        slidersContainer.addSubview(opacityIcon)
+        slidersContainer.addSubview(opacitySlider)
+        slidersContainer.addSubview(widthIcon)
+        slidersContainer.addSubview(widthSlider)
+        
+        NSLayoutConstraint.activate([
+            opacityIcon.centerXAnchor.constraint(equalTo: slidersContainer.centerXAnchor),
+            opacityIcon.topAnchor.constraint(equalTo: slidersContainer.topAnchor, constant: 40),
+            opacityIcon.widthAnchor.constraint(equalToConstant: 24),
+            opacityIcon.heightAnchor.constraint(equalToConstant: 24),
+            
+            widthIcon.centerXAnchor.constraint(equalTo: slidersContainer.centerXAnchor),
+            widthIcon.bottomAnchor.constraint(equalTo: slidersContainer.bottomAnchor, constant: -40),
+            widthIcon.widthAnchor.constraint(equalToConstant: 24),
+            widthIcon.heightAnchor.constraint(equalToConstant: 24)
+        ])
+            
+        NSLayoutConstraint.activate([
+            opacitySlider.centerXAnchor.constraint(equalTo: slidersContainer.centerXAnchor),
+            opacitySlider.centerYAnchor.constraint(equalTo: slidersContainer.centerYAnchor, constant: -100),
+            opacitySlider.widthAnchor.constraint(equalToConstant: 240),
+            opacitySlider.heightAnchor.constraint(equalToConstant: 30),
+        
+            widthSlider.centerXAnchor.constraint(equalTo: slidersContainer.centerXAnchor),
+            widthSlider.centerYAnchor.constraint(equalTo: slidersContainer.centerYAnchor, constant: 100),
+            widthSlider.widthAnchor.constraint(equalToConstant: 240),
+            widthSlider.heightAnchor.constraint(equalToConstant: 30)
+        ])
+        
+        opacitySlider.addTarget(self, action: #selector(opacitySliderChanged(_:)), for: .valueChanged)
+        widthSlider.addTarget(self, action: #selector(widthSliderChanged(_:)), for: .valueChanged)
+
+        addDragGesture(to: slidersContainer)
+    }
+
+    // Método auxiliar que cria stacks de slider
+    private func createSliderStackView() -> UIStackView {
+        let stack = UIStackView()
+        stack.axis = .vertical
+        stack.spacing = 12
+        stack.alignment = .center
+        stack.distribution = .fill
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        return stack
+    }
+
+    private func positionFloatingView(_ view: UIView, initialPosition: CGPoint) {
+        view.frame = CGRect(x: initialPosition.x,
+                            y: initialPosition.y,
+                            width: 100,
+                            height: 320)
+    }
+
+    private func addDragGesture(to view: UIView) {
+        let panGesture = UIPanGestureRecognizer(target: self, action: #selector(handleDrag(_:)))
+        view.addGestureRecognizer(panGesture)
+        view.isUserInteractionEnabled = true
+    }
+
+    @objc private func handleDrag(_ gesture: UIPanGestureRecognizer) {
+        guard let draggedView = gesture.view else { return }
+        let translation = gesture.translation(in: self.view)
+        
+        draggedView.center = CGPoint(
+            x: draggedView.center.x + translation.x,
+            y: draggedView.center.y + translation.y
+        )
+        
+        gesture.setTranslation(.zero, in: self.view)
+        
+        if gesture.state == .ended {
+            var frame = draggedView.frame
+            let safeArea = view.safeAreaLayoutGuide.layoutFrame
+            
+            frame.origin.x = max(safeArea.minX, min(frame.origin.x, safeArea.maxX - frame.width))
+            frame.origin.y = max(safeArea.minY, min(frame.origin.y, safeArea.maxY - frame.height))
+            
+            UIView.animate(withDuration: 0.3) {
+                draggedView.frame = frame
+            }
+        }
+    }
+
     
     private lazy var verticalStackView: UIStackView = {
         let stack = UIStackView()
@@ -131,7 +209,7 @@ final class DrawingViewController: UIViewController {
     private let widthSlider: UISlider = {
         let slider = UISlider()
         slider.minimumValue = 2
-        slider.maximumValue = 50
+        slider.maximumValue = 500
         slider.value = 5
         slider.transform = CGAffineTransform(rotationAngle: -.pi/2)
         slider.translatesAutoresizingMaskIntoConstraints = false
@@ -289,12 +367,12 @@ final class DrawingViewController: UIViewController {
 
     @objc private func increaseStrokeWidth() {
         if canvasView.tool is PKInkingTool {
-            currentInkingWidth = min(currentInkingWidth + 2, 50)
+            currentInkingWidth = min(currentInkingWidth + 2, 500)
             widthSlider.value = Float(currentInkingWidth)
             inkingTool = PKInkingTool(currentInkType, color: currentColor, width: currentInkingWidth)
             canvasView.tool = inkingTool
         } else {
-            currentEraserWidth = min(currentEraserWidth + 2, 50)
+            currentEraserWidth = min(currentEraserWidth + 2, 500)
             widthSlider.value = Float(currentEraserWidth)
             eraserTool = PKEraserTool(.bitmap, width: currentEraserWidth)
             canvasView.tool = eraserTool
